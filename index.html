@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Irancell BTS Coverage Map</title>
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+        }
+        
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .map-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 1000;
+            min-width: 280px;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a202c;
+            margin: 0;
+        }
+        
+        .subtitle {
+            font-size: 12px;
+            color: #718096;
+            margin: 2px 0 0 0;
+        }
+        
+        .layer-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .layer-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .layer-toggle:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e0;
+        }
+        
+        .layer-toggle.active {
+            background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+            border-color: #3182ce;
+        }
+        
+        .layer-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .layer-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .layer-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 14px;
+        }
+        
+        .layer-tech {
+            font-size: 11px;
+            color: #718096;
+            background: rgba(113, 128, 150, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #cbd5e0;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .toggle-switch.active {
+            background: #3182ce;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(20px);
+        }
+        
+        .stats {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .stats-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #718096;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 8px 10px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-number {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            z-index: 2000;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="loading" id="loading">Loading coverage data...</div>
+    
+    <div class="map-overlay">
+        <div class="header">
+            <div class="logo">IR</div>
+            <div>
+                <h1 class="title">Irancell Coverage</h1>
+                <p class="subtitle">Base Transceiver Stations</p>
+            </div>
+        </div>
+        
+        <div class="layer-controls">
+            <div class="layer-toggle" id="toggle-5g">
+                <div class="layer-info">
+                    <div class="layer-color" style="background: #ff6b6b;"></div>
+                    <div>
+                        <div class="layer-name">5G Network</div>
+                        <div class="layer-tech">Ultra High Speed</div>
+                    </div>
+                </div>
+                <div class="toggle-switch" id="switch-5g">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            
+            <div class="layer-toggle" id="toggle-4.5g">
+                <div class="layer-info">
+                    <div class="layer-color" style="background: #4ecdc4;"></div>
+                    <div>
+                        <div class="layer-name">4.5G Network</div>
+                        <div class="layer-tech">LTE Advanced</div>
+                    </div>
+                </div>
+                <div class="toggle-switch" id="switch-4.5g">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            
+            <div class="layer-toggle active" id="toggle-3g">
+                <div class="layer-info">
+                    <div class="layer-color" style="background: #45b7d1;"></div>
+                    <div>
+                        <div class="layer-name">3G Network</div>
+                        <div class="layer-tech">UMTS/HSPA</div>
+                    </div>
+                </div>
+                <div class="toggle-switch active" id="switch-3g">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            
+            <div class="layer-toggle active" id="toggle-2g">
+                <div class="layer-info">
+                    <div class="layer-color" style="background: #f7ca18;"></div>
+                    <div>
+                        <div class="layer-name">2G Network</div>
+                        <div class="layer-tech">GSM/EDGE</div>
+                    </div>
+                </div>
+                <div class="toggle-switch active" id="switch-2g">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stats-title">Coverage Statistics</div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="total-sites">0</div>
+                    <div class="stat-label">Total Sites</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="active-layers">2</div>
+                    <div class="stat-label">Active Layers</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm-tiles': {
+                        type: 'raster',
+                        tiles: [
+                            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [
+                    {
+                        id: 'osm-tiles',
+                        type: 'raster',
+                        source: 'osm-tiles',
+                        minzoom: 0,
+                        maxzoom: 19
+                    }
+                ]
+            },
+            center: [49.907,33.319],
+            zoom: 4.5,
+            attributionControl: true
+        });
+
+        // Layer configurations
+        const layerConfig = {
+            '2G': {
+                file: '2G.geojson',
+                color: '#f7ca18',
+                visible: true
+            },
+            '3G': {
+                file: '3G.geojson',
+                color: '#45b7d1',
+                visible: true
+            },
+            '4.5G': {
+                file: '4.5G.geojson',
+                color: '#4ecdc4',
+                visible: false
+            },
+            '5G': {
+                file: '5G.geojson',
+                color: '#ff6b6b',
+                visible: false
+            }
+        };
+
+        let loadedLayers = {};
+        let totalSites = 0;
+
+        // Show loading indicator
+        function showLoading() {
+            document.getElementById('loading').classList.add('show');
+        }
+
+        // Hide loading indicator
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('show');
+        }
+
+        // Load GeoJSON data
+        async function loadGeoJSON(layerName) {
+            try {
+                showLoading();
+                const response = await fetch(layerConfig[layerName].file);
+                if (!response.ok) {
+                    console.warn(`Could not load ${layerName} data: ${response.statusText}`);
+                    return null;
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.warn(`Error loading ${layerName} data:`, error);
+                return null;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Add layer to map
+        function addLayer(layerName, data) {
+            const config = layerConfig[layerName];
+            const sourceId = `${layerName.toLowerCase()}-source`;
+            const layerId = `${layerName.toLowerCase()}-layer`;
+
+            // Add source
+            map.addSource(sourceId, {
+                type: 'geojson',
+                data: data
+            });
+
+            // Add circle layer for BTS points
+            map.addLayer({
+                id: layerId,
+                type: 'circle',
+                source: sourceId,
+                layout: {
+                    visibility: config.visible ? 'visible' : 'none'
+                },
+                paint: {
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        5, 2,
+                        10, 4,
+                        15, 6
+                    ],
+                    'circle-color': config.color,
+                    'circle-opacity': 0.8,
+                    'circle-stroke-width': 1,
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-opacity': 0.6
+                }
+            });
+
+            // Add popup on click
+            map.on('click', layerId, (e) => {
+                const coordinates = e.features[0].geometry.coordinates.slice();
+                const properties = e.features[0].properties;
+                
+                let popupContent = `
+                    <div style="padding: 10px; font-family: sans-serif;">
+                        <h3 style="margin: 0 0 10px 0; color: ${config.color};">${layerName} BTS</h3>
+                `;
+                
+                // Display all properties
+                for (const [key, value] of Object.entries(properties)) {
+                    popupContent += `<p style="margin: 5px 0; font-size: 12px;"><strong>${key}:</strong> ${value}</p>`;
+                }
+                
+                popupContent += `</div>`;
+
+                new maplibregl.Popup()
+                    .setLngLat(coordinates)
+                    .setHTML(popupContent)
+                    .addTo(map);
+            });
+
+            // Change cursor on hover
+            map.on('mouseenter', layerId, () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', layerId, () => {
+                map.getCanvas().style.cursor = '';
+            });
+
+            loadedLayers[layerName] = {
+                sourceId,
+                layerId,
+                data,
+                count: data.features ? data.features.length : 0
+            };
+
+            updateStats();
+        }
+
+        // Toggle layer visibility
+        function toggleLayer(layerName) {
+            const config = layerConfig[layerName];
+            const layerInfo = loadedLayers[layerName];
+            
+            config.visible = !config.visible;
+            
+            if (layerInfo) {
+                map.setLayoutProperty(
+                    layerInfo.layerId,
+                    'visibility',
+                    config.visible ? 'visible' : 'none'
+                );
+            }
+            
+            updateToggleUI(layerName);
+            updateStats();
+        }
+
+        // Update toggle UI
+        function updateToggleUI(layerName) {
+            const toggleElement = document.getElementById(`toggle-${layerName.toLowerCase()}`);
+            const switchElement = document.getElementById(`switch-${layerName.toLowerCase()}`);
+            
+            if (layerConfig[layerName].visible) {
+                toggleElement.classList.add('active');
+                switchElement.classList.add('active');
+            } else {
+                toggleElement.classList.remove('active');
+                switchElement.classList.remove('active');
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            let totalVisibleSites = 0;
+            let activeLayers = 0;
+            
+            Object.keys(layerConfig).forEach(layerName => {
+                if (layerConfig[layerName].visible && loadedLayers[layerName]) {
+                    totalVisibleSites += loadedLayers[layerName].count;
+                    activeLayers++;
+                }
+            });
+            
+            document.getElementById('total-sites').textContent = totalVisibleSites;
+            document.getElementById('active-layers').textContent = activeLayers;
+        }
+
+        // Initialize map
+        map.on('load', async () => {
+            // Load all layers
+            for (const layerName of Object.keys(layerConfig)) {
+                const data = await loadGeoJSON(layerName);
+                if (data) {
+                    addLayer(layerName, data);
+                } else {
+                    // Create sample data if file doesn't exist
+                    console.log(`Creating sample data for ${layerName}`);
+                    const sampleData = createSampleData(layerName);
+                    addLayer(layerName, sampleData);
+                }
+            }
+
+            // Set up event listeners for toggles
+            Object.keys(layerConfig).forEach(layerName => {
+                const toggleElement = document.getElementById(`toggle-${layerName.toLowerCase()}`);
+                toggleElement.addEventListener('click', () => toggleLayer(layerName));
+            });
+
+            updateStats();
+        });
+
+        // Create sample data for demonstration
+        function createSampleData(layerName) {
+            const iranBounds = {
+                north: 39.7816,
+                south: 25.0782,
+                east: 63.3333,
+                west: 44.0479
+            };
+
+            const sampleCounts = {
+                '5G': 50,
+                '4.5G': 150,
+                '3G': 300,
+                '2G': 500
+            };
+
+            const features = [];
+            const count = sampleCounts[layerName] || 100;
+
+            // Major Iranian cities for realistic placement
+            const cities = [
+                {name: 'Tehran', lat: 35.6892, lng: 51.3890, weight: 0.3},
+                {name: 'Mashhad', lat: 36.2605, lng: 59.6168, weight: 0.15},
+                {name: 'Isfahan', lat: 32.6546, lng: 51.6680, weight: 0.12},
+                {name: 'Karaj', lat: 35.8327, lng: 50.9916, weight: 0.08},
+                {name: 'Shiraz', lat: 29.5918, lng: 52.5837, weight: 0.1},
+                {name: 'Tabriz', lat: 38.0962, lng: 46.2738, weight: 0.08},
+                {name: 'Ahvaz', lat: 31.2786, lng: 48.6700, weight: 0.07},
+                {name: 'Qom', lat: 34.6416, lng: 50.8746, weight: 0.05},
+                {name: 'Kermanshah', lat: 34.3142, lng: 47.0650, weight: 0.05}
+            ];
+
+            for (let i = 0; i < count; i++) {
+                // Choose city based on weight
+                let randomVal = Math.random();
+                let selectedCity = cities[cities.length - 1];
+                let cumWeight = 0;
+                
+                for (const city of cities) {
+                    cumWeight += city.weight;
+                    if (randomVal <= cumWeight) {
+                        selectedCity = city;
+                        break;
+                    }
+                }
+
+                // Add some random offset around the city
+                const offsetLat = (Math.random() - 0.5) * 0.5;
+                const offsetLng = (Math.random() - 0.5) * 0.5;
+                
+                const lat = selectedCity.lat + offsetLat;
+                const lng = selectedCity.lng + offsetLng;
+
+                features.push({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [lng, lat]
+                    },
+                    properties: {
+                        id: `${layerName}-${i + 1}`,
+                        technology: layerName,
+                        city: selectedCity.name,
+                        operator: 'Irancell',
+                        status: Math.random() > 0.05 ? 'Active' : 'Maintenance',
+                        power: Math.round(Math.random() * 50 + 10) + ' W',
+                        frequency: layerName === '5G' ? '3.5 GHz' : 
+                                 layerName === '4.5G' ? '1800 MHz' :
+                                 layerName === '3G' ? '2100 MHz' : '900 MHz'
+                    }
+                });
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: features
+            };
+        }
+
+        // Add navigation controls
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        map.addControl(new maplibregl.ScaleControl(), 'bottom-right');
+    </script>
+</body>
+</html>
